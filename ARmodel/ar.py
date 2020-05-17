@@ -2,13 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-num_predict_real = 8
-num_predict_art = 100
-feature = 3
-
-def data_generator(num):
+def generate_data(num):
     data = [0]*num
-    data[0], data[1] = 3, 1
+    data[0], data[1] = 3.0, 1.0
     a_1, a_2 = 0.5, 0.4
 
     for i in range(num-2):
@@ -20,77 +16,82 @@ def read_file():
     csv = pd.read_csv('canada.csv', header=0)
     return csv.values
 
-def autocovariance_ar(data, delay):
+def autocovariance(data, delay):
     ave = np.average(data)
     gamma = 0
     for i in range(delay,len(data)):
        gamma += float(data[i]-ave)*float(data[i-delay]-ave)
     return gamma/len(data)
 
-def ar(data):
-    dim = 2
-    A = [[0] * dim for i in range(dim)]
-    gamma = [autocovariance_ar(data,i) for i in range(dim+1)]
+class ar():
+    def __init__(self, data, tr_rate=0.8, dim=2):
+        self.data = data
+        self.data_length = len(self.data)
+        self.tr_rate = tr_rate
+        self.dim = dim
 
-    for i in range(dim):
-        for j in range(dim):
-            A[i][j] = gamma[abs(i-j)]
-    b = [gamma[i] for i in range(1, dim+1)]
+    def spilt(self):
+        self.split_num = int(self.data_length*(1-self.tr_rate))
+        self.train = self.data[:-self.split_num]
+        self.test = self.data[-self.split_num:]
 
-    param = np.dot(np.linalg.inv(A), b)
+    def fit(self):
+        A = [[0] * self.dim for i in range(self.dim)]
+        gamma = [autocovariance(self.train,i) for i in range(self.dim+1)]
 
-    sigma = gamma[0] - (param[0]*gamma[1]+param[1]*gamma[2])
-    return param,  sigma
+        for i in range(self.dim):
+            for j in range(self.dim):
+                A[i][j] = gamma[abs(i-j)]
+        b = [gamma[i] for i in range(1, self.dim+1)]
 
-def predict_ar(data, param, num_predict):
-    for i in range(num_predict):
-        result = param[0][0]*data[-num_predict+i]+param[0][1]\
-        *data[-num_predict+i-1]+np.random.normal(0, param[1])
-        data = np.append(data, result)
-    return data
+        self.param = np.dot(np.linalg.inv(A), b)
+
+        self.sigma = 0
+        for i in range(self.dim):
+            self.sigma += self.param[i]*gamma[i+1]
+        self.sigma = np.sqrt(gamma[0]-self.sigma)
+
+    def predict(self):
+        self.result = self.train
+
+        for i in range(self.split_num):
+            result = 0
+            for j in range(self.dim):
+                result += self.param[j]*self.result[-j-1]
+            result += np.random.normal(0, self.sigma)
+            np.append(self.result,result)
+
+    def plot(self, title ="Data"):
+        x = [i for i in range(self.data_length)]
+
+        plt.title(title)
+        plt.plot(x[-self.split_num-200:], self.data[-self.split_num-200:], label="True")
+        plt.plot(x[-self.split_num:], self.result[-self.split_num:], label="Predict")
+        vmax = max(max(self.data),max(self.result))
+        vmin = min(min(self.data),min(self.result))
+        plt.vlines(x[-self.split_num], vmin, vmax, "red", linestyles='dashed')
+        plt.xlabel("t")
+        plt.ylabel("y")
+        plt.legend()
+        plt.show()
 
 def main():
-    # artificial data
-    data = data_generator(1000)
-    train = data[:-num_predict_art]
-    test = data[-num_predict_art:]
+    #Artificial data
+    data = generate_data(1000)
+    ar1 = ar(data, 0.8, 2)
+    ar1.spilt()
+    ar1.fit()
+    ar1.predict()
+    ar1.plot("Artificail Data")
 
-    param = ar(train)
-    print "Parameter(artificial data)"+str(param[0])
-    print "Variance(artificial data)"+str(param[1])
-    result = predict_ar(train, param, num_predict_art)
 
-    x = [i for i in range(1000)]
-
-    plt.title("Artificial data")
-    plt.plot(x[-200:], data[-200:], label="True data")
-    plt.plot(x[-200:], result[-200:], label="Predict")
-    plt.vlines(899, -4, 4, "red", linestyles='dashed')
-    plt.xlabel("t")
-    plt.ylabel("y")
-    plt.legend()
-    plt.show()
-
-    # real data
+    #Economic data
     data = read_file()
-    train = data[:-num_predict_real]
-    test = data[-num_predict_real:]
-
-    param = ar(train[:,feature])
-    print "Parameter(economic data)"+str(param[0])
-    print "Variance(economic data)"+str(param[1])
-    result = predict_ar(train[:,feature], param, num_predict_real)
-
-    x = data[:,0]+[(i%4)*0.25 for i in range(len(data[:,0]))]
-
-    plt.title("Real wage in economic data")
-    plt.plot(x, data[:,feature], label="True data")
-    plt.plot(x, result, label="Predict")
-    plt.vlines(1998.75, 100, 500, "red", linestyles='dashed')
-    plt.xlabel("t")
-    plt.ylabel("y")
-    plt.legend()
-    plt.show()
+    ar2 = ar(data[:,3], 0.8, 2)
+    ar2.spilt()
+    ar2.fit()
+    ar2.predict()
+    ar2.plot("Economic Data")
 
 if __name__ == '__main__':
     main()
