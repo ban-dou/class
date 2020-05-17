@@ -1,5 +1,5 @@
 # class
-Summarize machine learning algorithms studied in master's course at Kyoto University ,Graduate School of Informatics.
+Summarize machine learning algorithms studied in master's course at Kyoto University, Graduate School of Informatics.
 
 
 Include the following algorithms:
